@@ -1,0 +1,35 @@
+name: Weekly IKEA Renton Events Check
+
+on:
+  schedule:
+    - cron: "0 17 * * 1" # Mondays ~9am PST
+  workflow_dispatch:
+
+jobs:
+  check-events:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Run event checker
+        env:
+          TARGET_URL: ${{ secrets.TARGET_URL }}
+          EVENTS_CONTAINER_SELECTOR: ${{ secrets.EVENTS_CONTAINER_SELECTOR }}
+          EVENT_ITEM_SELECTOR: ${{ secrets.EVENT_ITEM_SELECTOR }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: python src/check_events.py
