@@ -15,7 +15,6 @@ import os
 import sys
 from pathlib import Path
 import logging
-import base64
 
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError
@@ -26,10 +25,7 @@ from emailer import send_email
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 DATA_PATH = Path("data/last_events.json")
-ENCRYPTED_PATH = Path("data/last_events.json.enc")
-
 
 def load_env():
     """Load environment variables and fail fast if required ones are missing."""
@@ -67,22 +63,25 @@ def load_previous_events():
     # In GitHub Actions, try encrypted file first
     if os.getenv("GITHUB_ACTIONS"):
         encryption_key = get_encryption_key()
-        if encryption_key and ENCRYPTED_PATH.exists():
-            logger.info("Loading encrypted artifact from previous run")
+        encrypted_path = Path("data/last_events.json.enc")
+        
+        if encryption_key and encrypted_path.exists():
+            logger.info(f"Loading encrypted artifact from: {encrypted_path}")
             try:
                 fernet = Fernet(encryption_key)
-                with open(ENCRYPTED_PATH, "rb") as f:
+                with open(encrypted_path, "rb") as f:
                     decrypted = fernet.decrypt(f.read())
                 events = set(json.loads(decrypted.decode()))
                 logger.info(f"Successfully loaded {len(events)} events from encrypted artifact")
                 return events
             except Exception as e:
-                logger.warning(f"Failed to decrypt artifact: {e}")
-                # Fall through to try unencrypted
+                logger.error(f"Failed to decrypt artifact: {e}", exc_info=True)
+                # Don't fall through - if we're in GitHub Actions, we should use encrypted file
+                return set()
     
     # Local development: use unencrypted file
     if DATA_PATH.exists():
-        logger.info("Loading unencrypted local file")
+        logger.info(f"Loading unencrypted local file from: {DATA_PATH}")
         with open(DATA_PATH, "r", encoding="utf-8") as f:
             return set(json.load(f))
     
@@ -92,29 +91,29 @@ def load_previous_events():
 
 def save_events(events):
     """Persist events and prepare for GitHub artifact upload."""
-    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Always save unencrypted locally (for local testing)
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(sorted(events), f, indent=2)
-    logger.info(f"Saved {len(events)} events to local file")
-    
-    # In GitHub Actions, also save encrypted version for artifact
+    # In GitHub Actions, ONLY save encrypted version
     if os.getenv("GITHUB_ACTIONS"):
         encryption_key = get_encryption_key()
         if encryption_key:
-            artifact_dir = Path(os.getenv("GITHUB_WORKSPACE", ".")) / "data"
-            artifact_dir.mkdir(exist_ok=True)
+            # Save to data/ for artifact upload
+            Path("data").mkdir(exist_ok=True)
             
             # Encrypt the data
             fernet = Fernet(encryption_key)
             data = json.dumps(sorted(events)).encode()
             encrypted = fernet.encrypt(data)
             
-            encrypted_artifact_path = artifact_dir / "last_events.json.enc"
-            with open(encrypted_artifact_path, "wb") as f:
+            encrypted_path = Path("data/last_events.json.enc")
+            with open(encrypted_path, "wb") as f:
                 f.write(encrypted)
-            logger.info(f"Saved encrypted artifact for GitHub Actions")
+            logger.info(f"Saved encrypted artifact to: {encrypted_path}")
+            return
+    
+    # Local development: save unencrypted
+    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(sorted(events), f, indent=2)
+    logger.info(f"Saved {len(events)} events to local file: {DATA_PATH}")
 
 
 def normalize_event_text(text):
@@ -170,6 +169,12 @@ def main():
     logger.info(f"Previous events: {len(previous_events)}")
     logger.info(f"Current events: {len(current_events)}")
     logger.info(f"New events: {len(new_events)}")
+    
+    # Debug: show a sample if we have issues
+    if previous_events and current_events and new_events:
+        logger.info(f"Sample previous: {list(previous_events)[0][:100]}")
+        logger.info(f"Sample current: {list(current_events)[0][:100]}")
+        logger.info(f"Sample new: {list(new_events)[0][:100]}")
 
     if new_events:
         logger.info(f"Sending email notification for {len(new_events)} new events")
