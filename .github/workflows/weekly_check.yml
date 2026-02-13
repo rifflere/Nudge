@@ -1,4 +1,4 @@
-name: Weekly IKEA Renton Events Check
+name: Weekly Webpage Updates Check
 
 on:
   schedule:
