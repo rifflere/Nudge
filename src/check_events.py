@@ -52,13 +52,17 @@ def load_previous_events():
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         return set(json.load(f))
 
-
 def save_events(events):
-    """Persist the current set of events to disk."""
+    """Persist events and prepare for GitHub artifact upload."""
     DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(sorted(events), f, indent=2)
-
+    
+    # For GitHub Actions artifact
+    artifact_dir = Path(os.getenv("GITHUB_WORKSPACE", ".")) / "data"
+    artifact_dir.mkdir(exist_ok=True)
+    with open(artifact_dir / "last_events.json", "w", encoding="utf-8") as f:
+        json.dump(sorted(events), f, indent=2)
 
 def normalize_event_text(text):
     """
