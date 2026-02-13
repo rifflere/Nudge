@@ -14,11 +14,15 @@ import json
 import os
 import sys
 from pathlib import Path
+import logging
 
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError
 
 from emailer import send_email
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 DATA_PATH = Path("data/last_events.json")
@@ -52,6 +56,7 @@ def load_previous_events():
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         return set(json.load(f))
 
+
 def save_events(events):
     """Persist events and prepare for GitHub artifact upload."""
     DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -63,6 +68,7 @@ def save_events(events):
     artifact_dir.mkdir(exist_ok=True)
     with open(artifact_dir / "last_events.json", "w", encoding="utf-8") as f:
         json.dump(sorted(events), f, indent=2)
+
 
 def normalize_event_text(text):
     """
@@ -102,6 +108,8 @@ def fetch_current_events():
             events.add(normalized)
 
         browser.close()
+        
+        logger.info(f"Found {len(events)} events on page")
         return events
 
 
@@ -110,18 +118,26 @@ def main():
 
     previous_events = load_previous_events()
     current_events = fetch_current_events()
-
     new_events = current_events - previous_events
 
+    logger.info(f"Previous events: {len(previous_events)}")
+    logger.info(f"Current events: {len(current_events)}")
+    logger.info(f"New events: {len(new_events)}")
+
     if new_events:
+        logger.info(f"Sending email notification for {len(new_events)} new events")
         send_email(sorted(new_events))
+    else:
+        logger.info("No new events detected")
 
     save_events(current_events)
+    logger.info("Event state saved successfully")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        logger.error(f"Error: {e}", exc_info=True)
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
