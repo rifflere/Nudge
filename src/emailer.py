@@ -16,20 +16,26 @@ def send_email(new_events):
     password = os.getenv("EMAIL_PASSWORD")
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT"))
+    
+    # Configurable email content
+    email_subject = os.getenv("EMAIL_SUBJECT", "Nudge: {count} new update(s)")
+    email_intro = os.getenv("EMAIL_INTRO", "New updates were posted:")
+    view_link_text = os.getenv("VIEW_LINK_TEXT", "View all updates:")
+    view_link_url = os.getenv("VIEW_LINK_URL", os.getenv("TARGET_URL"))
 
     msg = EmailMessage()
-    msg["Subject"] = f"IKEA Renton: {len(new_events)} new event(s) posted"
+    msg["Subject"] = email_subject.format(count=len(new_events))
     msg["From"] = from_email
     msg["To"] = notify_email
 
     body_lines = [
-        "New IKEA Renton events were posted:\n",
+        email_intro + "\n",
     ]
     for event in new_events:
         body_lines.append(f"- {event}")
 
-    body_lines.append("\nView all events:")
-    body_lines.append("https://www.ikea.com/us/en/stores/events/ikea-renton-wa/")
+    body_lines.append(f"\n{view_link_text}")
+    body_lines.append(view_link_url)
 
     msg.set_content("\n".join(body_lines))
 
