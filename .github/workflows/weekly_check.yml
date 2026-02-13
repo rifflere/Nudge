@@ -12,6 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Download previous state
+      - name: Download previous events
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: weekly_check.yml
+          name: event-state
+          path: data
+          if_no_artifact_found: ignore
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -33,3 +42,12 @@ jobs:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
         run: python src/check_events.py
+      
+      # Upload new state
+      - name: Upload current events
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event-state
+          path: data/last_events.json
+          retention-days: 90
