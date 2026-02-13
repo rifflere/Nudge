@@ -2,7 +2,7 @@ name: Weekly Webpage Updates Check
 
 on:
   schedule:
-    - cron: "0 17 * * 1" # Mondays ~9am PST
+    - cron: "0 17 * * 1" # Mondays at 17:00 UTC (9am PST winter / 10am PDT summer)
   workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download previous state
+      # Download previous encrypted state
       - name: Download previous events
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -41,13 +41,14 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          ARTIFACT_ENCRYPTION_KEY: ${{ secrets.ARTIFACT_ENCRYPTION_KEY }}
         run: python src/check_events.py
-      
-      # Upload new state
+
+      # Upload new encrypted state
       - name: Upload current events
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: event-state
-          path: data/last_events.json
+          path: data/last_events.json.enc
           retention-days: 90
