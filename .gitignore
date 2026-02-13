@@ -1,5 +1,6 @@
 .env
 __pycache__/
 data/last_events.json
+data/last_events.json.enc
 .playwright/
 .venv/
